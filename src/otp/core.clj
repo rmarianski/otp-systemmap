@@ -247,9 +247,12 @@
                                                                 (:stopid-to-stoptimes *mappings*)
                                                                 [stop])))})
 
+(defn- parse-stopid [x]
+  (last (re-split #"\." x)))
+
 (defn web-wms [dao params]
-  (let [geoserver-response (slurp* (url-params *geoserver-base-uri* params))
-        stopid (.trim geoserver-response)
+  (let [geoserver-response (.trim (slurp* (url-params *geoserver-base-uri* params)))
+        stopid (parse-stopid geoserver-response)
         stop (.getStopForId dao (make-id stopid))]
     (json-str (if (nil? stop) {} (make-detailed-stop dao stop)))))
 
