@@ -15,10 +15,8 @@
            (org.onebusaway.gtfs.serialization GtfsReader)
            (org.onebusaway.gtfs.impl GtfsRelationalDaoImpl)
            (org.onebusaway.gtfs.impl.calendar CalendarServiceDataFactoryImpl CalendarServiceImpl)))
-           ;; the extended is giving me problems currently with lein
-           ;; it's because the extended api is a war file and not a jar
-;           (org.opentripplanner.api.extended.ws TransitServerGtfs)))
 
+;; this should be in a user.clj file
 (defn meths [inst] (map #(.getName %) (.getMethods (class inst))))
 
 (defn read-gtfs
@@ -44,12 +42,6 @@
   [id]
   ;; TODO hardcoded agency id
   (AgencyAndId. "MTA NYCT" id))
-
-; better to store the agencyandid object directly
-;; (defn get-id
-;;   "generate a string representation of an id from a onebusaway entity"
-;;   [entity]
-;;   (.toString (.getId entity)))
 
 ;; trip ids that are representative for nyc
 (def representative-tripids
@@ -181,12 +173,10 @@
 (defmethod print-json java.util.Date [x]
   (print-json (.format (java.text.SimpleDateFormat. "yyyy-MM-dd'T'HH:mm:ss") x)))
 
-;; (defmethod print-json AgencyAndId [x]
-;;   (print-json (str x)))
-
 ;; use the string values of agencyandids
 (derive AgencyAndId ::str)
 
+;; should update the parameters for this function
 (defn get-departures-for-stops
   "retrieve departure info for given stops"
   ([calendar stopid-to-stoptimes stops]
@@ -208,54 +198,6 @@
                     :route (make-detailed-route (.getRoute trip))
                     :routeid (.getId (.getRoute trip))})))
              stoptimes)))))
-
-(defn web-departures [dao calendar latlons-to-stopids params format-fn]
-  (let [lat (:lat params)
-        lon (:lon params)
-        n (get params :n 3)]
-    (if (or (nil? lat) (nil? lon))
-      (format-fn [])
-      (let [stopids (get latlons-to-stopids (make-latlon lat lon) [])
-            stops (map #(.getStopForId dao %) stopids)
-            departures (sort-by :date (get-departures-for-stops calendar (:stopid-to-stoptimes *mappings*) stops))]
-        (format-fn departures)))))
-
-(defn format-departures-xml [departures]
-  (with-out-str
-    (emit {:tag :departures
-           :content (if (empty? departures)
-                      nil
-                      (map (fn [departure]
-                             {:tag :departure
-                              :content [{:tag :routeid
-                                         :content [(str (:routeid departure))]}
-                                        {:tag :headsign
-                                         :content [(str (:headsign departure))]}
-                                        {:tag :date
-                                         :content [(str (:date departure))]}]})
-                           departures))})))
-
-(defn format-departures-json [departures]
-  (json-str
-   {:departures
-    (if (empty? departures)
-        []
-        (map (fn [departure]
-               {:departure {:routeid (str (:routeid departure))
-                            :headsign (str (:headsign departure))
-                            :date (str (:date departure))}})
-             departures))}))
-
-(defn web-stop [dao calendar latlons-to-stopids params format-fn]
-  (let [lat (:lat params)
-        lon (:lon params)
-        n (get params :n 3)]
-    (if (or (nil? lat) (nil? lon))
-      (format-fn [])
-      (let [stopids (get latlons-to-stopids (make-latlon lat lon) [])
-            stops (map #(.getStopForId dao %) stopids)
-            departures (sort-by :date (get-departures-for-stops calendar (:stopid-to-stoptimes *mappings*) stops))]
-        (format-fn departures)))))
 
 (def *curpath*
      (str-join "/" (butlast
@@ -283,6 +225,7 @@
     6 "GONDOLA"
     7 "FUNICULAR"))
 
+;; consider creating automatic json serializers
 (defn make-detailed-route [route]
   (let [agency-and-id (.getId route)]
     {:shortName (.getShortName route)
@@ -312,11 +255,6 @@
 
 (defroutes weburls
   (GET "/" (html [:body [:h1 "hi world"]]))
-  (GET "/departures" (web-departures (:dao *mappings*)
-                                     (:calendar *mappings*)
-                                     (:latlons-to-stopids *mappings*)
-                                     params
-                                     format-departures-json))
   (GET "/opentripplanner-api-extended/ws/wms"
        (web-wms (:dao *mappings*) params))
   (GET "/opentripplanner-api-extended/*"
@@ -325,12 +263,6 @@
        (or (serve-file (add-to-curpath "public") (params :*)) :next))
   (ANY "/*"
        (page-not-found (add-to-curpath "public" "404.html"))))
-
-;;   (GET "/stop" (web-stop (:dao *mappings*)
-;;                          (:calendar *mappings*)
-;;                          (:latlons-to-stopids *mappings*)
-;;                          params
-;;                          format-departures-json)))
 
 (defn main [& args]
   (run-server {:port 2468}
