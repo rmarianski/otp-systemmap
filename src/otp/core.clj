@@ -293,6 +293,7 @@
 
 (defn make-detailed-stop [dao stop]
   {:name (.getName stop)
+   :stopId (.. stop getId getId)
    :routes (map #(make-detailed-route %)
                 (map
                  #(.getRouteForId dao %)
