@@ -268,19 +268,17 @@
     (let [geoserver-response (.trim (slurp* (url-params *geoserver-base-uri* params)))
           parsed-responses (parse-response geoserver-response)]
       (if (not (empty? parsed-responses))
-        (let [stopid (some #(if (= "stops" (first %)) (second %)) parsed-responses)]
-          (if stopid
-            (let [stop (.getStopForId dao (make-id stopid))]
-              (if stop
-                {:type :stop
-                 :stop (make-detailed-stop dao stop)}))
-            {:type :routes
-             :routes
-             (map make-detailed-route
-                  (filter (complement nil?)
-                          (map #(.getRouteForId dao (make-id (second %)))
-                               parsed-responses)))}))))
-    {})))
+        (if-let [stopid (some #(if (= "stops" (first %)) (second %)) parsed-responses)]
+          (if-let [stop (.getStopForId dao (make-id stopid))]
+            {:type :stop
+             :stop (make-detailed-stop dao stop)}))
+          {:type :routes
+           :routes
+           (map make-detailed-route
+                (filter (complement nil?)
+                        (map #(.getRouteForId dao (make-id (second %)))
+                             parsed-responses)))}))
+   {})))
 
 (defroutes weburls
   (GET "/" (html [:body [:h1 "hi world"]]))
