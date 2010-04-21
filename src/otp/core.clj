@@ -271,13 +271,17 @@
         (if-let [stopid (some #(if (= "stops" (first %)) (second %)) parsed-responses)]
           (if-let [stop (.getStopForId dao (make-id stopid))]
             {:type :stop
-             :stop (make-detailed-stop dao stop)}))
-          {:type :routes
-           :routes
-           (map make-detailed-route
-                (filter (complement nil?)
-                        (map #(.getRouteForId dao (make-id (second %)))
-                             parsed-responses)))}))
+             :stop (make-detailed-stop dao stop)})
+          (let [routeid-to-stopids (:routeid-to-stopids *mappings*)
+                routeids (map #(make-id (second %)) parsed-responses)
+                routes (filter (complement nil?)
+                               (map #(.getRouteForId dao %) routeids))]
+            {:type :routes
+             :routes (map make-detailed-route routes)
+             :stopids (mapcat (fn [routeid]
+                                (map #(.getId %)
+                                     (get routeid-to-stopids routeid [])))
+                              routeids)}))))
    {})))
 
 (defroutes weburls
