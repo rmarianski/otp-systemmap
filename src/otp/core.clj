@@ -272,8 +272,10 @@
           (if stopid
             (let [stop (.getStopForId dao (make-id stopid))]
               (if stop
-                (make-detailed-stop dao stop)))
-            {:routes
+                {:type :stop
+                 :stop (make-detailed-stop dao stop)}))
+            {:type :routes
+             :routes
              (map make-detailed-route
                   (filter (complement nil?)
                           (map #(.getRouteForId dao (make-id (second %)))
