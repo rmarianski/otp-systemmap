@@ -247,14 +247,36 @@
                                                                 (:stopid-to-stoptimes *mappings*)
                                                                 [stop])))})
 
-(defn- parse-stopid [x]
-  (last (re-split #"\." x)))
+(defn parse-response
+  "parse the geoserver response"
+  [response-string]
+  (filter
+   #(and (not (empty? %))
+         (let [x (first %)]
+           (or (= x "routes")
+               (= x "stops"))))
+   (let [responses (filter
+                    (complement empty?)
+                    (re-split #"\s" response-string))]
+     (map #(re-split #"\." % 2) responses))))
 
 (defn web-wms [dao params]
-  (let [geoserver-response (.trim (slurp* (url-params *geoserver-base-uri* params)))
-        stopid (parse-stopid geoserver-response)
-        stop (.getStopForId dao (make-id stopid))]
-    (json-str (if (nil? stop) {} (make-detailed-stop dao stop)))))
+  (json-str
+   (or 
+    (let [geoserver-response (.trim (slurp* (url-params *geoserver-base-uri* params)))
+          parsed-responses (parse-response geoserver-response)]
+      (if (not (empty? parsed-responses))
+        (let [stopid (some #(if (= "stops" (first %)) (second %)) parsed-responses)]
+          (if stopid
+            (let [stop (.getStopForId dao (make-id stopid))]
+              (if stop
+                (make-detailed-stop dao stop)))
+            {:routes
+             (map make-detailed-route
+                  (filter (complement nil?)
+                          (map #(.getRouteForId dao (make-id (second %)))
+                               parsed-responses)))}))))
+    {})))
 
 (defroutes weburls
   (GET "/" (html [:body [:h1 "hi world"]]))
