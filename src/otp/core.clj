@@ -169,12 +169,47 @@
      (.set Calendar/MILLISECOND 0)
      (.add Calendar/SECOND time))))
 
+(def *curpath*
+     (str-join "/" (butlast
+                    (re-split #"/"
+                              (.getAbsolutePath
+                               (java.io.File. (:file ^#'*mappings*)))))))
+
+(defn- add-to-basepath [basepath & paths]
+  (str-join "/" (cons basepath paths)))
+
+(def add-to-curpath (partial add-to-basepath *curpath*))
+
+(def *geoserver-base-uri* "http://openlayers.example.com/geoserver/wms")
+
 ;; json formatting multimethod definitions
 (defmethod print-json java.util.Date [x]
   (print-json (.format (java.text.SimpleDateFormat. "yyyy-MM-dd'T'HH:mm:ss") x)))
 
-;; use the string values of agencyandids
-(derive AgencyAndId ::str)
+(defmethod print-json AgencyAndId [x]
+  (print-json (str x)))
+
+(defn route-type-to-string
+  "convert the route integer type to a string"
+  [type]
+  (condp = type
+    0 "TRAM"
+    1 "SUBWAY"
+    2 "RAIL"
+    3 "BUS"
+    4 "FERRY"
+    5 "CABLE_CAR"
+    6 "GONDOLA"
+    7 "FUNICULAR"))
+
+;; consider creating automatic json serializers
+(defn make-detailed-route [route]
+  (let [agency-and-id (.getId route)]
+    {:shortName (.getShortName route)
+     :longName (.getLongName route)
+     :mode (route-type-to-string (.getType route))
+     :agencyId (.getAgencyId agency-and-id)
+     :routeId (.getId agency-and-id)}))
 
 ;; should update the parameters for this function
 (defn get-departures-for-stops
@@ -198,41 +233,6 @@
                     :route (make-detailed-route (.getRoute trip))
                     :routeid (.getId (.getRoute trip))})))
              stoptimes)))))
-
-(def *curpath*
-     (str-join "/" (butlast
-                    (re-split #"/"
-                              (.getAbsolutePath
-                               (java.io.File. (:file ^#'*mappings*)))))))
-
-(defn- add-to-basepath [basepath & paths]
-  (str-join "/" (cons basepath paths)))
-
-(def add-to-curpath (partial add-to-basepath *curpath*))
-
-(def *geoserver-base-uri* "http://openlayers.example.com/geoserver/wms")
-
-(defn route-type-to-string
-  "convert the route integer type to a string"
-  [type]
-  (condp = type
-    0 "TRAM"
-    1 "SUBWAY"
-    2 "RAIL"
-    3 "BUS"
-    4 "FERRY"
-    5 "CABLE_CAR"
-    6 "GONDOLA"
-    7 "FUNICULAR"))
-
-;; consider creating automatic json serializers
-(defn make-detailed-route [route]
-  (let [agency-and-id (.getId route)]
-    {:shortName (.getShortName route)
-     :longName (.getLongName route)
-     :mode (route-type-to-string (.getType route))
-     :agencyId (.getAgencyId agency-and-id)
-     :routeId (.getId agency-and-id)}))
 
 (defn make-detailed-stop [dao stop]
   {:name (.getName stop)
