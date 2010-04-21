@@ -21,6 +21,8 @@
 
 (defn read-gtfs
   "return a loaded gtfscontext from the path"
+  ; need to update representative trip ids first
+  ;([] (read-gtfs "/home/rob/data/otp/mta/nyct_subway_100308.zip"))
   ([] (read-gtfs "/home/rob/data/otp/mta/theonetrain.zip"))
   ([path] (read-gtfs path "MTA NYCT"))
   ([path default-agency-id]
