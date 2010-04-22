@@ -2,6 +2,7 @@
 ;; (def daomap (read-gtfs "/home/rob/data/otp/mta/theonetrain.zip"))
 
 (ns otp.core
+  (:gen-class :extends javax.servlet.http.HttpServlet)
   (:use [compojure]
         [compojure.http response]
         [clojure.contrib.lazy-xml :only (emit)]
@@ -298,3 +299,5 @@
 (defn main [& args]
   (run-server {:port 2468}
               "/*" (->> weburls servlet)))
+
+(defservice weburls)

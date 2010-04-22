@@ -11,4 +11,6 @@
                  ;; the extended one gives me problems
                  ;; and it's because it's a war file and not a jar
                  ;[org.opentripplanner/opentripplanner-api-extended "0.3-SNAPSHOT"]
-                 [org.onebusaway/onebusaway-gtfs "1.1.0"]])
+                 [org.onebusaway/onebusaway-gtfs "1.1.0"]]
+  :dev-dependencies [[uk.org.alienscience/leiningen-war "0.0.2"]]
+  :namespaces [otp.core])
