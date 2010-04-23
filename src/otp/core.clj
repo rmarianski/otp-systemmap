@@ -292,15 +292,16 @@
                                     @*gtfs-mapping*
                                     (swap! *gtfs-mapping* create-gtfs-mappings)))
          ~'geoserver-base-uri (:geoserver-base-uri cfg#)
+         ~'url-prefix (:url-prefix cfg#)
          ~'base-path (:base-path cfg#)]
      (defroutes ~name ~@routes)))
 
 (defgtfsroutes weburls
-  (GET "/opentripplanner-api-extended/" (html [:body [:h1 "hi world"]]))
-  (GET "/opentripplanner-api-extended/wms"
-       (web-wms (create-gtfs-mappings) geoserver-base-uri params))
+  (GET (str url-prefix "/") (html [:body [:h1 "hi world"]]))
+  (GET (str url-prefix "/wms")
+       (web-wms (create-gtfs-mappings) geoserver-base-uri params)))
   ;; this is just for testing locally
-;;   (GET "/opentripplanner-api-extended/*"
+;;   (GET (str url-prefix "/*")
 ;;        (or (serve-file (str base-path "/api-extended") (params :*)) :next))
 ;;   (ANY "/*"
 ;;        (page-not-found (str base-path "/public/404.html"))))
