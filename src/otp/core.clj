@@ -16,6 +16,8 @@
 
 (def *cfg-file* "/home/rob/dev/java/clojure/otp/src/otp/config.clj")
 
+(defn read-config-file [] (with-in-reader *cfg-file* (read)))
+
 ;; this should be in a user.clj file
 (defn meths [inst] (map #(.getName %) (.getMethods (class inst))))
 
@@ -23,8 +25,8 @@
   "return a loaded gtfscontext from the path"
   ; need to update representative trip ids first
   ;([] (read-gtfs "/home/rob/data/otp/mta/nyct_subway_100308.zip"))
-  ([] (read-gtfs "/home/rob/data/otp/mta/theonetrain.zip"))
-  ([path] (read-gtfs path "MTA NYCT"))
+  ([] (read-gtfs (:gtfs-file-path (read-config-file))))
+  ([path] (read-gtfs path (:default-agency-id (read-config-file))))
   ([path default-agency-id]
      (let [dao (GtfsRelationalDaoImpl.)
            gtfs-reader
@@ -284,13 +286,13 @@
 ; also adds local bindings read from the config file whose path
 ; is specified above *cfg-file*
 (defmacro defgtfsroutes [name & routes]
-  `(let [cfg# (with-in-reader *cfg-file* (read))
+  `(let [cfg# (read-config-file)
          ;~'create-gtfs-mappings (memoize create-gtfs-mappings)
          ;; atom might be a better approach
          ~'create-gtfs-mappings (fn []
                                   (if @*gtfs-mapping*
                                     @*gtfs-mapping*
-                                    (swap! *gtfs-mapping* create-gtfs-mappings)))
+                                    (reset! *gtfs-mapping* (create-gtfs-mappings))))
          ~'geoserver-base-uri (:geoserver-base-uri cfg#)
          ~'url-prefix (:url-prefix cfg#)
          ~'base-path (:base-path cfg#)]
