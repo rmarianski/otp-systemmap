@@ -1,6 +1,3 @@
-;; (use :reload '[otp.core])
-;; (def daomap (read-gtfs "/home/rob/data/otp/mta/theonetrain.zip"))
-
 (ns otp.core
   (:gen-class :extends javax.servlet.http.HttpServlet)
   (:use [compojure]
@@ -8,7 +5,7 @@
         [clojure.contrib.lazy-xml :only (emit)]
         [clojure.contrib.json.write :only (json-str print-json)]
         [clojure.contrib.str-utils :only (str-join re-split)]
-        [clojure.contrib.duck-streams :only (slurp*)])
+        [clojure.contrib.duck-streams :only (slurp* with-in-reader)])
   (:import (java.io File)
            (java.util Calendar Date)
            (org.onebusaway.gtfs.model AgencyAndId)
@@ -16,6 +13,8 @@
            (org.onebusaway.gtfs.serialization GtfsReader)
            (org.onebusaway.gtfs.impl GtfsRelationalDaoImpl)
            (org.onebusaway.gtfs.impl.calendar CalendarServiceDataFactoryImpl CalendarServiceImpl)))
+
+(def *cfg-file* "/home/rob/dev/java/clojure/otp/src/otp/config.clj")
 
 ;; this should be in a user.clj file
 (defn meths [inst] (map #(.getName %) (.getMethods (class inst))))
@@ -149,8 +148,10 @@
           (filter #(representative-trip? (.getTrip %))
                   (.getAllStopTimes dao))))
 
-(defonce *mappings*
-  (let [daomap (read-gtfs)
+(defn create-gtfs-mappings [& filename]
+  (let [daomap (if filename
+                 (read-gtfs (first filename))
+                 (read-gtfs))
         dao (:dao daomap)
         calendar (:calendar daomap)]
     {:latlons-to-stopids (make-latlons-to-stopids dao)
@@ -172,18 +173,6 @@
      (.set Calendar/MILLISECOND 0)
      (.add Calendar/SECOND time))))
 
-(def *curpath*
-     (str-join "/" (butlast
-                    (re-split #"/"
-                              (.getAbsolutePath
-                               (java.io.File. (:file ^#'*mappings*)))))))
-
-(defn- add-to-basepath [basepath & paths]
-  (str-join "/" (cons basepath paths)))
-
-(def add-to-curpath (partial add-to-basepath *curpath*))
-
-(def *geoserver-base-uri* "http://openlayers.example.com/geoserver/wms")
 
 ;; json formatting multimethod definitions
 (defmethod print-json java.util.Date [x]
@@ -217,11 +206,10 @@
 ;; should update the parameters for this function
 (defn get-departures-for-stops
   "retrieve departure info for given stops"
-  ([calendar stopid-to-stoptimes stops]
-     (get-departures-for-stops calendar stopid-to-stoptimes stops (Date.)))
-  ([calendar stopid-to-stoptimes stops date]
-     (let [stoptimes (mapcat #(stopid-to-stoptimes (.getId %))
-                             stops)
+  ([gtfs-mapping stops]
+     (get-departures-for-stops gtfs-mapping stops (Date.)))
+  ([{:keys [calendar stopid-to-stoptimes]} stops date]
+     (let [stoptimes (mapcat #(stopid-to-stoptimes (.getId %)) stops)
            active-service-ids (set (.getServiceIdsOnDate calendar (ServiceDate. date)))]
        (filter
         (complement nil?)
@@ -237,17 +225,18 @@
                     :routeid (.getId (.getRoute trip))})))
              stoptimes)))))
 
-(defn make-detailed-stop [dao stop]
+(defn make-detailed-stop [{:keys [dao calendar
+                                  stopid-to-stoptimes stopid-to-routeids] :as gtfs-mapping}
+                          stop]
   {:name (.getName stop)
    :stopId (.. stop getId getId)
    :routes (map #(make-detailed-route %)
                 (map
                  #(.getRouteForId dao %)
-                 (get (:stopid-to-routeids *mappings*)
+                 (get stopid-to-routeids
                       (.getId stop)
                       [])))
-   :departures (take 3 (sort-by :date (get-departures-for-stops (:calendar *mappings*)
-                                                                (:stopid-to-stoptimes *mappings*)
+   :departures (take 3 (sort-by :date (get-departures-for-stops gtfs-mapping
                                                                 [stop])))})
 
 (defn parse-response
@@ -263,18 +252,18 @@
                     (re-split #"\s" response-string))]
      (map #(re-split #"\." % 2) responses))))
 
-(defn web-wms [dao params]
+(defn web-wms [{:keys [dao routeid-to-stopids] :as gtfs-mapping} geoserver-base-uri params]
   (json-str
    (or 
-    (let [geoserver-response (.trim (slurp* (url-params *geoserver-base-uri* params)))
+    (let [request-uri (url-params geoserver-base-uri params)
+          geoserver-response (.trim (slurp* request-uri))
           parsed-responses (parse-response geoserver-response)]
       (if (not (empty? parsed-responses))
         (if-let [stopid (some #(if (= "stops" (first %)) (second %)) parsed-responses)]
           (if-let [stop (.getStopForId dao (make-id stopid))]
             {:type :stop
-             :stop (make-detailed-stop dao stop)})
-          (let [routeid-to-stopids (:routeid-to-stopids *mappings*)
-                routeids (map #(make-id (second %)) parsed-responses)
+             :stop (make-detailed-stop gtfs-mapping stop)})
+          (let [routeids (map #(make-id (second %)) parsed-responses)
                 routes (filter (complement nil?)
                                (map #(.getRouteForId dao %) routeids))]
             {:type :routes
@@ -282,22 +271,43 @@
              :stopids (mapcat (fn [routeid]
                                 (map #(.getId %)
                                      (get routeid-to-stopids routeid [])))
-                              routeids)}))))
-   {})))
+                              routeids)})))
+      )
+    {})))
 
-(defroutes weburls
-  (GET "/" (html [:body [:h1 "hi world"]]))
-  (GET "/opentripplanner-api-extended/ws/wms"
-       (web-wms (:dao *mappings*) params))
-  (GET "/opentripplanner-api-extended/*"
-       (serve-file (add-to-curpath "api-extended") (params :*)))
-  (GET "/*"
-       (or (serve-file (add-to-curpath "public") (params :*)) :next))
-  (ANY "/*"
-       (page-not-found (add-to-curpath "public" "404.html"))))
+;; populate the gtfs mappings when a request comes in the first time
+(defonce *gtfs-mapping* (atom nil))
+
+; macro that uses a create-gtfs-mappings function
+; that only loads the data once and stores it in an atom
+; for some reason the memoize function wasn't caching enough
+; also adds local bindings read from the config file whose path
+; is specified above *cfg-file*
+(defmacro defgtfsroutes [name & routes]
+  `(let [cfg# (with-in-reader *cfg-file* (read))
+         ;~'create-gtfs-mappings (memoize create-gtfs-mappings)
+         ;; atom might be a better approach
+         ~'create-gtfs-mappings (fn []
+                                  (if @*gtfs-mapping*
+                                    @*gtfs-mapping*
+                                    (swap! *gtfs-mapping* create-gtfs-mappings)))
+         ~'geoserver-base-uri (:geoserver-base-uri cfg#)
+         ~'base-path (:base-path cfg#)]
+     (defroutes ~name ~@routes)))
+
+(defgtfsroutes weburls
+  (GET "/opentripplanner-api-extended/" (html [:body [:h1 "hi world"]]))
+  (GET "/opentripplanner-api-extended/wms"
+       (web-wms (create-gtfs-mappings) geoserver-base-uri params))
+  ;; this is just for testing locally
+;;   (GET "/opentripplanner-api-extended/*"
+;;        (or (serve-file (str base-path "/api-extended") (params :*)) :next))
+;;   (ANY "/*"
+;;        (page-not-found (str base-path "/public/404.html"))))
 
 (defn main [& args]
-  (run-server {:port 2468}
-              "/*" (->> weburls servlet)))
+  (let [port (if args (Integer. (first args)) 2468)]
+    (run-server {:port port}
+                "/*" (->> weburls servlet))))
 
 (defservice weburls)
