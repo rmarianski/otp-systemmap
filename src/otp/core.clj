@@ -306,7 +306,7 @@
 ;;   (ANY "/*"
 ;;        (page-not-found (str base-path "/public/404.html"))))
 
-(defn main [& args]
+(defn -main [& args]
   (let [port (if args (Integer. (first args)) 2468)]
     (run-server {:port port}
                 "/*" (->> weburls servlet))))
