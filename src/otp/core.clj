@@ -283,30 +283,30 @@
 ; macro that uses a create-gtfs-mappings function
 ; that only loads the data once and stores it in an atom
 ; for some reason the memoize function wasn't caching enough
-; also adds local bindings read from the config file whose path
-; is specified above *cfg-file*
-(defmacro defgtfsroutes [name & routes]
-  `(let [cfg# (read-config-file)
-         ;~'create-gtfs-mappings (memoize create-gtfs-mappings)
-         ;; atom might be a better approach
-         ~'create-gtfs-mappings (fn []
-                                  (if @*gtfs-mapping*
-                                    @*gtfs-mapping*
-                                    (reset! *gtfs-mapping* (create-gtfs-mappings))))
-         ~'geoserver-base-uri (:geoserver-base-uri cfg#)
-         ~'url-prefix (:url-prefix cfg#)
-         ~'base-path (:base-path cfg#)]
-     (defroutes ~name ~@routes)))
+; maybe the servlet was being removed from memory when not in use?
+; it also injects functions for all keys in in the config file
+; that read the config file on each call and return the corresponding value
+(defmacro defgtfsroutes [routesname & routes]
+  (let [cfgkeys (keys (read-config-file))]
+    `(let [~'create-gtfs-mappings (fn []
+                                    (if @*gtfs-mapping*
+                                      @*gtfs-mapping*
+                                      (reset! *gtfs-mapping* (create-gtfs-mappings))))
+           ~@(mapcat (fn [cfgkey]
+                       `(~(symbol (name cfgkey))
+                         (fn [] (get (read-config-file) ~cfgkey))))
+                     cfgkeys)]
+       (defroutes ~routesname ~@routes))))
 
 (defgtfsroutes weburls
-  (GET (str url-prefix "/") (html [:body [:h1 "hi world"]]))
-  (GET (str url-prefix "/wms")
-       (web-wms (create-gtfs-mappings) geoserver-base-uri params)))
+  (GET (str (url-prefix) "/") (html [:body [:h1 "hi world"]]))
+  (GET (str (url-prefix) "/wms")
+       (web-wms (create-gtfs-mappings) (geoserver-base-uri) params)))
   ;; this is just for testing locally
-;;   (GET (str url-prefix "/*")
-;;        (or (serve-file (str base-path "/api-extended") (params :*)) :next))
+;;   (GET (str (url-prefix) "/*")
+;;        (or (serve-file (str (base-path) "/api-extended") (params :*)) :next))
 ;;   (ANY "/*"
-;;        (page-not-found (str base-path "/public/404.html"))))
+;;        (page-not-found (str (base-path) "/public/404.html"))))
 
 (defn -main [& args]
   (let [port (if args (Integer. (first args)) 2468)]
