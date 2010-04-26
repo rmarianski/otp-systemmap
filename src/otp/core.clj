@@ -244,15 +244,11 @@
 (defn parse-response
   "parse the geoserver response"
   [response-string]
-  (filter
-   #(and (not (empty? %))
-         (let [x (first %)]
-           (or (= x "routes")
-               (= x "stops"))))
-   (let [responses (filter
-                    (complement empty?)
-                    (re-split #"\s" response-string))]
-     (map #(re-split #"\." % 2) responses))))
+  (loop [m (re-matcher #"(stops|routes).(\S+)" response-string)
+         acc []]
+    (if (re-find m)
+      (recur m (conj acc (rest (re-groups m))))
+      acc)))
 
 (defn web-wms [{:keys [dao routeid-to-stopids] :as gtfs-mapping} geoserver-base-uri params]
   (json-str
