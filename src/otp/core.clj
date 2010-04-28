@@ -85,21 +85,6 @@
   [trip]
   (contains? representative-tripids (.getId trip)))
 
-(defn make-latlon
-  "generate a string representation of a latlon"
-  ([stop] (make-latlon (.getLat stop) (.getLon stop)))
-  ([lat lon] (str lat "," lon)))
-
-(defn make-latlons-to-stopids
-  "create a mapping of latlons to a set of stopids"
-  [dao]
-  (reduce (fn [map stop]
-            (let [latlon (make-latlon stop)]
-              (assoc map latlon
-                     (conj (get map latlon #{}) (.getId stop)))))
-          {}
-          (.getAllStops dao)))
-
 (defn make-stopid-to-stoptimes
   "create a mapping of stopids to stoptimes"
   [dao]
@@ -109,17 +94,6 @@
                      (conj (get map stopid []) stoptime))))
           {}
           (.getAllStopTimes dao)))
-
-(defn make-routeid-to-shapepoints
-  "create a mapping of routeid to shapepoints"
-  [dao]
-  (reduce (fn [map trip]
-            (assoc map
-              (.getId trip)
-              (.getShapePointsForShapeId dao
-                                         (.getShapeId trip))))
-          {}
-          (filter representative-trip? (.getAllTrips dao))))
 
 (defn make-routeid-to-stopids
   "create a mapping of routeid to stop ids"
@@ -154,15 +128,12 @@
   (let [daomap (if filename
                  (read-gtfs (first filename))
                  (read-gtfs))
-        dao (:dao daomap)
-        calendar (:calendar daomap)]
-    {:latlons-to-stopids (make-latlons-to-stopids dao)
-     :stopid-to-stoptimes (make-stopid-to-stoptimes dao)
+        dao (:dao daomap)]
+    {:stopid-to-stoptimes (make-stopid-to-stoptimes dao)
      :stopid-to-routeids (make-stopid-to-routeids dao)
-     :routeid-to-shapepoints (make-routeid-to-shapepoints dao)
      :routeid-to-stopids (make-routeid-to-stopids dao)
      :dao dao
-     :calendar calendar}))
+     :calendar (:calendar daomap)}))
 
 (defn make-date-from-gtfs-time [time]
   "create a java.util.Date instance from a gtfs time integer"
@@ -227,8 +198,7 @@
                     :routeid (.getId (.getRoute trip))})))
              stoptimes)))))
 
-(defn make-detailed-stop [{:keys [dao calendar
-                                  stopid-to-stoptimes stopid-to-routeids] :as gtfs-mapping}
+(defn make-detailed-stop [{:keys [dao stopid-to-routeids] :as gtfs-mapping}
                           stop]
   {:name (.getName stop)
    :stopId (.. stop getId getId)
