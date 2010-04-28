@@ -200,16 +200,13 @@
 
 (defn make-detailed-stop [{:keys [dao stopid-to-routeids] :as gtfs-mapping}
                           stop]
-  {:name (.getName stop)
-   :stopId (.. stop getId getId)
-   :routes (map #(make-detailed-route %)
-                (map
-                 #(.getRouteForId dao %)
-                 (get stopid-to-routeids
-                      (.getId stop)
-                      [])))
-   :departures (take 3 (sort-by :date (get-departures-for-stops gtfs-mapping
-                                                                [stop])))})
+  (let [routes-for-stop (map #(.getRouteForId dao %)
+                             (get stopid-to-routeids (.getId stop) []))]
+    {:name (.getName stop)
+     :stopId (.. stop getId getId)
+     :routes (map #(make-detailed-route %) routes-for-stop)
+     :departures (take 3 (sort-by :date (get-departures-for-stops gtfs-mapping
+                                                                [stop])))}))
 
 (defn parse-response
   "parse the geoserver response"
