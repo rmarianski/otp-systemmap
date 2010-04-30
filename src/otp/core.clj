@@ -241,7 +241,10 @@
     {})))
 
 ;; populate the gtfs mappings when a request comes in the first time
-(defonce *gtfs-mapping* (atom nil))
+(defonce *gtfs-mapping* (ref nil))
+
+(defn set-gtfs-mappings []
+  (dosync (ref-set *gtfs-mapping* (create-gtfs-mappings))))
 
 ; macro that uses a create-gtfs-mappings function
 ; that only loads the data once and stores it in an atom
@@ -254,7 +257,7 @@
     `(let [~'create-gtfs-mappings (fn []
                                     (if @*gtfs-mapping*
                                       @*gtfs-mapping*
-                                      (reset! *gtfs-mapping* (create-gtfs-mappings))))
+                                      (set-gtfs-mappings)))
            ~@(mapcat (fn [cfgkey]
                        `(~(symbol (name cfgkey))
                          (fn [] (get (read-config-file) ~cfgkey))))
