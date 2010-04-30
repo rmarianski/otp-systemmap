@@ -47,6 +47,17 @@
   ;; TODO hardcoded agency id
   (AgencyAndId. "MTA NYCT" id))
 
+(defn make-date-from-gtfs-time [time]
+  "create a java.util.Date instance from a gtfs time integer"
+  (.getTime
+   (doto (Calendar/getInstance)
+     (.setTimeInMillis (System/currentTimeMillis))
+     (.set Calendar/HOUR_OF_DAY 0)
+     (.set Calendar/MINUTE 0)
+     (.set Calendar/SECOND 0)
+     (.set Calendar/MILLISECOND 0)
+     (.add Calendar/SECOND time))))
+
 ;; trip ids that are representative for nyc
 (def representative-tripids
      (set (map make-id
@@ -84,6 +95,35 @@
   "predicate whether given trip is representative of its route"
   [trip]
   (contains? representative-tripids (.getId trip)))
+
+(defn representative-stoptimes
+  "return the stoptimes that refer to a representative trip"
+  [dao]
+  (filter #(representative-trip? (.getTrip %)) (.getAllStopTimes dao)))
+
+(defn smallest-largest-deptime
+  "given a seq of mappings of :deptime :stop, return the smallest and largest :stop"
+  [deptime-stops]
+  (let [sorted-deptime-stops (sort-by :deptime deptime-stops)]
+    (vector (-> (first sorted-deptime-stops) :stop)
+            (-> (last sorted-deptime-stops) :stop))))
+
+(defn make-representativetrip-to-stops
+  "return a mapping of the representative trips to their start/end stops"
+  ([dao] (make-representativetrip-to-stops dao (representative-stoptimes dao)))
+  ([dao rep-stoptimes]
+     (let [trip->deptime-stops
+           (reduce (fn [map stoptime]
+                     (let [tripid (-> (.getTrip stoptime) .getId)]
+                       (assoc map tripid
+                              (conj (get map tripid #{})
+                                    {:deptime (-> (.getDepartureTime stoptime) make-date-from-gtfs-time)
+                                     :stop (-> (.getStop stoptime) .getId .getId)}))))
+                   {}
+                   rep-stoptimes)]
+       (apply hash-map (mapcat (fn [[tripid deptime-stops]]
+                                 [(.getId tripid) (smallest-largest-deptime deptime-stops)])
+                               trip->deptime-stops)))))
 
 (defn make-stopid-to-stoptimes
   "create a mapping of stopids to stoptimes"
@@ -134,18 +174,6 @@
      :routeid-to-stopids (make-routeid-to-stopids dao)
      :dao dao
      :calendar (:calendar daomap)}))
-
-(defn make-date-from-gtfs-time [time]
-  "create a java.util.Date instance from a gtfs time integer"
-  (.getTime
-   (doto (Calendar/getInstance)
-     (.setTimeInMillis (System/currentTimeMillis))
-     (.set Calendar/HOUR_OF_DAY 0)
-     (.set Calendar/MINUTE 0)
-     (.set Calendar/SECOND 0)
-     (.set Calendar/MILLISECOND 0)
-     (.add Calendar/SECOND time))))
-
 
 ;; json formatting multimethod definitions
 (defmethod print-json java.util.Date [x]
