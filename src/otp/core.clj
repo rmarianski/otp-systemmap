@@ -108,6 +108,40 @@
     (vector (-> (first sorted-deptime-stops) :stop)
             (-> (last sorted-deptime-stops) :stop))))
 
+(defn smallest-and-largest
+  "retrieve the smallest and largest values from a seq"
+  [coll key-fn]
+  (let [sorted-seq (sort-by key-fn coll)]
+    (vector (first sorted-seq) (last sorted-seq))))
+
+(defn make-trip-stop-struct
+  "convert a map entry of tripid to stoptimes to a trip stop struct"
+  [tripid-stoptimes-entry]
+  (let [tripid (key tripid-stoptimes-entry)
+        stoptimes (val tripid-stoptimes-entry)
+        first-last-stoptime (smallest-and-largest stoptimes #(.getDepartureTime %))
+        first-last-stop (map #(-> (.getStop %) .getId) first-last-stoptime)]
+    {:tripid tripid
+     :first-stop (first first-last-stop)
+     :last-stop (second first-last-stop)}))
+
+(defn reptrips-for-stopids
+  "retrieve the trips that have the start/end stopids"
+  [stopid-pairs {:keys [dao tripid-to-stoptimes]}]
+  (let [trip-stop-structs (map make-trip-stop-struct tripid-to-stoptimes)
+        representative-trip-stop-structs
+        (filter (fn [trip-stop-struct]
+                  (some (fn [[first-stop last-stop]]
+                          (and (= first-stop (:first-stop trip-stop-struct))
+                               (= last-stop (:last-stop trip-stop-struct))))
+                        stopid-pairs))
+                trip-stop-structs)
+        unique-tripids (reduce (fn [map {:keys [first-stop last-stop tripid]}]
+                                 (assoc map [first-stop last-stop] tripid))
+                               {}
+                               representative-trip-stop-structs)]
+    (vals unique-tripids)))
+
 (defn make-representativetrip-to-stops
   "return a mapping of the representative trips to their start/end stops"
   ([dao] (make-representativetrip-to-stops dao (representative-stoptimes dao)))
@@ -164,6 +198,19 @@
           (filter #(representative-trip? (.getTrip %))
                   (.getAllStopTimes dao))))
 
+; maybe we should map to stoptime ids instead
+; to be leaner on mem usage?
+(defn make-tripid-to-stoptimes [dao]
+  "make a mapping of tripid -> stoptime objects"
+  (reduce (fn [map stoptime]
+            (let [tripid (-> (.getTrip stoptime) .getId)]
+              (assoc map tripid
+                     (conj (get map tripid [])
+                           stoptime))))
+          {}
+          (.getAllStopTimes dao)))
+                  
+
 (defn create-gtfs-mappings [& filename]
   (let [daomap (if filename
                  (read-gtfs (first filename))
@@ -172,6 +219,7 @@
     {:stopid-to-stoptimes (make-stopid-to-stoptimes dao)
      :stopid-to-routeids (make-stopid-to-routeids dao)
      :routeid-to-stopids (make-routeid-to-stopids dao)
+     :tripid-to-stoptimes (make-tripid-to-stoptimes dao)
      :dao dao
      :calendar (:calendar daomap)}))
 
