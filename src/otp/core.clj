@@ -159,6 +159,11 @@
                                  [(.getId tripid) (smallest-largest-deptime deptime-stops)])
                                trip->deptime-stops)))))
 
+(defn make-stopid-pairs
+  "convenience function to create stopid pairs suitable for reptrips-for-stopids fn from representative trips"
+  [dao]
+  (map #(map make-id %) (vals (make-representativetrip-to-stops dao))))
+
 (defn make-stopid-to-stoptimes
   "create a mapping of stopids to stoptimes"
   [dao]
@@ -210,7 +215,6 @@
           {}
           (.getAllStopTimes dao)))
                   
-
 (defn create-gtfs-mappings [& filename]
   (let [daomap (if filename
                  (read-gtfs (first filename))
