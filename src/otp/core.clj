@@ -126,7 +126,7 @@
      :last-stop (second first-last-stop)}))
 
 (defn reptrips-for-stopids
-  "retrieve the trips that have the start/end stopids"
+  "retrieve the trips that have the start/end stopids (stopids are agencyandids)"
   [stopid-pairs {:keys [dao tripid-to-stoptimes]}]
   (let [trip-stop-structs (map make-trip-stop-struct tripid-to-stoptimes)
         representative-trip-stop-structs
