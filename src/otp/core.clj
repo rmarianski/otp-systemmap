@@ -252,7 +252,6 @@
      :agencyId (.getAgencyId agency-and-id)
      :routeId (.getId agency-and-id)}))
 
-;; should update the parameters for this function
 (defn get-departures-for-stops
   "retrieve departure info for given stops"
   ([gtfs-mapping stops]
