@@ -164,6 +164,18 @@
   [dao]
   (map #(map make-id %) (vals (make-representativetrip-to-stops dao))))
 
+(defn make-trip-route-shapeid-struct
+  "create a more useful structure for generating shape map from trip ids (agencyandids)"
+  [dao tripids]
+  (map #(let [trip (.getTripForId dao %)]
+              (list (.getId %)
+                    (.. trip getRoute getId getId)
+                    (.. trip getShapeId getId)))
+       tripids))
+
+(defn make-route-shapeid-str [route-shapeid-structs]
+  (map #(str-join "," %) (map rest route-shapeid-structs)))
+
 (defn make-stopid-to-stoptimes
   "create a mapping of stopids to stoptimes"
   [dao]
