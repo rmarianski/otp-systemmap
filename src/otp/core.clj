@@ -21,12 +21,20 @@
 ;; this should be in a user.clj file
 (defn meths [inst] (map #(.getName %) (.getMethods (class inst))))
 
+;; utilities?
+(defn filter-map
+  "filter out nil values after running map on one collection"
+  [f coll]
+  (filter #(not (nil? %)) (map f coll)))
+
+(defn default-agency-id [] (:default-agency-id (read-config-file)))
+
 (defn read-gtfs
   "return a loaded gtfscontext from the path"
   ; need to update representative trip ids first
   ;([] (read-gtfs "/home/rob/data/otp/mta/nyct_subway_100308.zip"))
   ([] (read-gtfs (:gtfs-file-path (read-config-file))))
-  ([path] (read-gtfs path (:default-agency-id (read-config-file))))
+  ([path] (read-gtfs path (default-agency-id)))
   ([path default-agency-id]
      (let [dao (GtfsRelationalDaoImpl.)
            gtfs-reader
@@ -43,9 +51,8 @@
 
 (defn make-id
   "create an AgencyAndId object for a given string id"
-  [id]
-  ;; TODO hardcoded agency id
-  (AgencyAndId. "MTA NYCT" id))
+  ([id] (make-id (default-agency-id) id))
+  ([agency-id id] (AgencyAndId. agency-id id)))
 
 (defn make-date-from-gtfs-time [time]
   "create a java.util.Date instance from a gtfs time integer"
@@ -101,13 +108,6 @@
   [dao]
   (filter #(representative-trip? (.getTrip %)) (.getAllStopTimes dao)))
 
-(defn smallest-largest-deptime
-  "given a seq of mappings of :deptime :stop, return the smallest and largest :stop"
-  [deptime-stops]
-  (let [sorted-deptime-stops (sort-by :deptime deptime-stops)]
-    (vector (-> (first sorted-deptime-stops) :stop)
-            (-> (last sorted-deptime-stops) :stop))))
-
 (defn smallest-and-largest
   "retrieve the smallest and largest values from a seq"
   [coll key-fn]
@@ -120,25 +120,29 @@
   (let [tripid (key tripid-stoptimes-entry)
         stoptimes (val tripid-stoptimes-entry)
         first-last-stoptime (smallest-and-largest stoptimes #(.getDepartureTime %))
-        first-last-stop (map #(-> (.getStop %) .getId) first-last-stoptime)]
+        first-last-stop (map #(.. % getStop getId) first-last-stoptime)]
     {:tripid tripid
      :first-stop (first first-last-stop)
      :last-stop (second first-last-stop)}))
 
+(defn has-shape?
+  "returns whether a particular trip refers to a shape"
+  [trip]
+  (not-empty (.. trip getShapeId getId)))
+
 (defn reptrips-for-stopids
   "retrieve the trips that have the start/end stopids (stopids are agencyandids)"
   [stopid-pairs {:keys [dao tripid-to-stoptimes]}]
-  (let [t->st-with-shapes (filter #(not-empty (.. (->> % key (.getTripForId dao))
-                                                  getShapeId getId))
-                                  tripid-to-stoptimes)
-        trip-stop-structs (map make-trip-stop-struct t->st-with-shapes)
-        representative-trip-stop-structs
-        (filter (fn [trip-stop-struct]
-                  (some (fn [[first-stop last-stop]]
-                          (and (= first-stop (:first-stop trip-stop-struct))
-                               (= last-stop (:last-stop trip-stop-struct))))
-                        stopid-pairs))
-                trip-stop-structs)
+  (let [get-trip (fn [tid->st] (->> tid->st key (.getTripForId dao)))
+        trip-stop-structs (for [tid->st tripid-to-stoptimes
+                                :when (has-shape? (get-trip tid->st))]
+                            (make-trip-stop-struct tid->st))
+        stops-match? (fn [{:keys [first-stop last-stop]}]
+                       (some (fn [[pair-first-stop pair-last-stop]]
+                               (and (= pair-first-stop first-stop)
+                                    (= pair-last-stop last-stop)))
+                             stopid-pairs))
+        representative-trip-stop-structs (filter stops-match? trip-stop-structs)                       
         unique-tripids (reduce (fn [map {:keys [first-stop last-stop tripid]}]
                                  (assoc map [first-stop last-stop] tripid))
                                {}
@@ -151,16 +155,18 @@
   ([dao rep-stoptimes]
      (let [trip->deptime-stops
            (reduce (fn [map stoptime]
-                     (let [tripid (-> (.getTrip stoptime) .getId)]
+                     (let [tripid (.. stoptime getTrip getId)]
                        (assoc map tripid
                               (conj (get map tripid #{})
-                                    {:deptime (-> (.getDepartureTime stoptime) make-date-from-gtfs-time)
-                                     :stop (-> (.getStop stoptime) .getId .getId)}))))
+                                    {:deptime (-> stoptime .getDepartureTime make-date-from-gtfs-time)
+                                     :stop (.. stoptime getStop getId getId)}))))
                    {}
                    rep-stoptimes)]
-       (apply hash-map (mapcat (fn [[tripid deptime-stops]]
-                                 [(.getId tripid) (smallest-largest-deptime deptime-stops)])
-                               trip->deptime-stops)))))
+       (reduce (fn [hashmap [tripid deptime-stops]]
+                 (assoc hashmap
+                   (.getId tripid) (map :stop (smallest-and-largest deptime-stops :deptime))))
+               {}
+               trip->deptime-stops))))
 
 (defn make-stopid-pairs
   "convenience function to create stopid pairs suitable for reptrips-for-stopids fn from representative trips"
@@ -183,7 +189,7 @@
   "create a mapping of stopids to stoptimes"
   [dao]
   (reduce (fn [map stoptime]
-            (let [stopid (.getId (.getStop stoptime))]
+            (let [stopid (.. stoptime getStop getId)]
               (assoc map stopid
                      (conj (get map stopid []) stoptime))))
           {}
@@ -194,7 +200,7 @@
   [dao]
   (reduce (fn [map stoptime]
             (let [stop (.getStop stoptime)
-                  route (.getRoute (.getTrip stoptime))
+                  route (.. stoptime getTrip getRoute)
                   stopid (.getId stop)
                   routeid (.getId route)]
               (assoc map
@@ -208,7 +214,7 @@
   "make a mapping of stopid -> route ids"
   (reduce (fn [map stoptime]
             (let [stop (.getStop stoptime)
-                  route (.getRoute (.getTrip stoptime))
+                  route (.. stoptime getTrip getRoute)
                   stopid (.getId stop)
                   routeid (.getId route)]
               (assoc map
@@ -223,7 +229,7 @@
 (defn make-tripid-to-stoptimes [dao]
   "make a mapping of tripid -> stoptime objects"
   (reduce (fn [map stoptime]
-            (let [tripid (-> (.getTrip stoptime) .getId)]
+            (let [tripid (.. stoptime getTrip getId)]
               (assoc map tripid
                      (conj (get map tripid [])
                            stoptime))))
@@ -277,34 +283,32 @@
      (get-departures-for-stops gtfs-mapping stops (Date.)))
   ([{:keys [calendar stopid-to-stoptimes]} stops date]
      (let [stoptimes (mapcat #(stopid-to-stoptimes (.getId %)) stops)
-           active-service-ids (set (.getServiceIdsOnDate calendar (ServiceDate. date)))]
-       (filter
-        (complement nil?)
-        (map (fn [stoptime]
-               (let [trip (.getTrip stoptime)
-                     departureTime (make-date-from-gtfs-time (.getDepartureTime stoptime))]
-                 (if (and (contains? active-service-ids
-                                     (.getServiceId trip))
-                          (pos? (.compareTo departureTime date)))
-                   {:date departureTime
-                    :headsign (.getTripHeadsign trip)
-                    :route (make-detailed-route (.getRoute trip))
-                    :routeid (.getId (.getRoute trip))})))
-             stoptimes)))))
+           active-service-ids (set (.getServiceIdsOnDate calendar (ServiceDate. date)))
+           make-departure-info (fn [stoptime]
+                                 (let [trip (.getTrip stoptime)
+                                       date (make-date-from-gtfs-time
+                                             (.getDepartureTime stoptime))]
+                                   (if (and (contains? active-service-ids
+                                                       (.getServiceId trip))
+                                            (pos? (.compareTo date date)))
+                                     {:date date
+                                      :headsign (.getTripHeadsign trip)
+                                      :route (make-detailed-route (.getRoute trip))
+                                      :routeid (.. trip getRoute getId)})))]
+       (filter-map make-departure-info stoptimes))))
 
-(defn make-detailed-stop [{:keys [dao stopid-to-routeids] :as gtfs-mapping}
-                          stop]
-  (let [routes-for-stop (map #(.getRouteForId dao %)
-                             (get stopid-to-routeids (.getId stop) []))]
-    {:name (.getName stop)
-     :stopId (.. stop getId getId)
-     :routes (map #(make-detailed-route %) routes-for-stop)
-     :departures (take 3 (sort-by :date (get-departures-for-stops gtfs-mapping
-                                                                [stop])))}))
+(defn make-detailed-stop
+  ([gtfs-mapping stop] (make-detailed-stop gtfs-mapping stop 3))
+  ([{:keys [dao stopid-to-routeids] :as gtfs-mapping} stop n]
+     (let [routeids (get stopid-to-routeids (.getId stop) [])
+           routes (map #(.getRouteForId dao %) routeids)
+           departures (get-departures-for-stops gtfs-mapping [stop])]
+       {:name (.getName stop)
+        :stopId (.. stop getId getId)
+        :routes (map #(make-detailed-route %) routes)
+        :departures (take n (sort-by :date departures))})))
 
-(defn parse-response
-  "parse the geoserver response"
-  [response-string]
+(defn parse-geoserver-response [response-string]
   (loop [m (re-matcher #"(stops|routes).(\S+)" response-string)
          acc []]
     (if (re-find m)
@@ -315,24 +319,26 @@
   (json-str
    (or 
     (let [request-uri (url-params geoserver-base-uri params)
-          geoserver-response (.trim (slurp* request-uri))
-          parsed-responses (parse-response geoserver-response)]
-      (if (not (empty? parsed-responses))
+          geoserver-response (-> request-uri slurp* .trim)
+          parsed-responses (parse-geoserver-response geoserver-response)]
+      (if (not-empty parsed-responses)
         (if-let [stopid (some #(if (= "stops" (first %)) (second %)) parsed-responses)]
           (if-let [stop (.getStopForId dao (make-id stopid))]
             {:type :stop
              :stop (make-detailed-stop gtfs-mapping stop)})
           (let [routeids (map #(make-id (second %)) parsed-responses)
-                routes (filter (complement nil?)
-                               (map #(.getRouteForId dao %) routeids))]
+                routes (filter-map #(.getRouteForId dao %) routeids)
+                make-route->stopids (fn [routeid]
+                                      (map #(.getId %)
+                                           (get routeid-to-stopids routeid [])))]
             {:type :routes
              :routes (map make-detailed-route routes)
-             :stopids (mapcat (fn [routeid]
-                                (map #(.getId %)
-                                     (get routeid-to-stopids routeid [])))
-                              routeids)})))
-      )
+             :stopids (mapcat make-route->stopids routeids)}))))
     {})))
+
+;;; consider creating a macro that abstracts over the ref nil
+;;; and function to set it first pattern
+;;; as well as function to retrieve the value, and set it first if necessary
 
 ;; populate the gtfs mappings when a request comes in the first time
 (defonce *gtfs-mapping* (ref nil))
