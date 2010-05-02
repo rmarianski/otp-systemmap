@@ -128,7 +128,10 @@
 (defn reptrips-for-stopids
   "retrieve the trips that have the start/end stopids (stopids are agencyandids)"
   [stopid-pairs {:keys [dao tripid-to-stoptimes]}]
-  (let [trip-stop-structs (map make-trip-stop-struct tripid-to-stoptimes)
+  (let [t->st-with-shapes (filter #(not-empty (.. (->> % key (.getTripForId dao))
+                                                  getShapeId getId))
+                                  tripid-to-stoptimes)
+        trip-stop-structs (map make-trip-stop-struct t->st-with-shapes)
         representative-trip-stop-structs
         (filter (fn [trip-stop-struct]
                   (some (fn [[first-stop last-stop]]
