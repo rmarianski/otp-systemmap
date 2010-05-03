@@ -110,7 +110,7 @@
 
 (defn smallest-and-largest
   "retrieve the smallest and largest values from a seq"
-  [coll key-fn]
+  [key-fn coll]
   (let [sorted-seq (sort-by key-fn coll)]
     (vector (first sorted-seq) (last sorted-seq))))
 
@@ -119,7 +119,7 @@
   [tripid-stoptimes-entry]
   (let [tripid (key tripid-stoptimes-entry)
         stoptimes (val tripid-stoptimes-entry)
-        first-last-stoptime (smallest-and-largest stoptimes #(.getDepartureTime %))
+        first-last-stoptime (smallest-and-largest #(.getDepartureTime %) stoptimes)
         first-last-stop (map #(.. % getStop getId) first-last-stoptime)]
     {:tripid tripid
      :first-stop (first first-last-stop)
@@ -164,7 +164,7 @@
                    rep-stoptimes)]
        (reduce (fn [acc [tripid deptime-stops]]
                  (assoc acc
-                   (.getId tripid) (map :stop (smallest-and-largest deptime-stops :deptime))))
+                   (.getId tripid) (map :stop (smallest-and-largest :deptime deptime-stops))))
                {}
                trip->deptime-stops))))
 
