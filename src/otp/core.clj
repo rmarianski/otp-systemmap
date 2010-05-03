@@ -185,6 +185,16 @@
 (defn make-route-shapeid-str [route-shapeid-structs]
   (map #(str-join "," %) (map rest route-shapeid-structs)))
 
+(defn get-trips-for-shapeids [dao shapeids]
+  (let [shapeids (set shapeids)
+        reptrips (filter #(shapeids (.getShapeId %))
+                         (.getAllTrips dao))
+        ; to uniquify
+        shapeid->reptrips (reduce #(assoc % (.getShapeId %2) %2)
+                                    {}
+                                    reptrips)]
+    (vals shapeid->reptrips)))
+
 (defn make-stopid-to-stoptimes
   "create a mapping of stopids to stoptimes"
   [dao]
