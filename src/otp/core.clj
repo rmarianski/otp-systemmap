@@ -23,9 +23,9 @@
 
 ;; utilities?
 (defn filter-map
-  "filter out nil values after running map on one collection"
-  [f coll]
-  (filter #(not (nil? %)) (map f coll)))
+  "filter out nil values after running map"
+  [f & colls]
+  (filter #(not (nil? %)) (apply map f colls)))
 
 (defn default-agency-id [] (:default-agency-id (read-config-file)))
 
