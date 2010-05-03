@@ -336,6 +336,34 @@
              :stopids (mapcat make-route->stopids routeids)}))))
     {})))
 
+(def comma-sep (partial str-join ","))
+
+(defn web-shape-mapping [{:keys [dao] :as gtfs-mapping}]
+  (html
+   [:ul
+    (let [stopid-pairs (make-stopid-pairs dao)
+          tripids (reptrips-for-stopids stopid-pairs gtfs-mapping)
+          route-shape-structs (make-trip-route-shapeid-struct dao tripids)
+          route-shapeid-strs (make-route-shapeid-str route-shape-structs)]
+          ;; we ended up finding the exact same trips
+;;           route-shapeid-strs (map comma-sep
+;;                                   (map #(concat (rest %) (list
+;;                                                           (.. (.getTripForId dao (make-id (first %)))
+;;                                                               getShapeId getId)
+;;                                                           (first %)))
+;;                                        route-shape-structs))]
+      (map #(vector :li %) (sort route-shapeid-strs)))]))
+
+(defn web-shape-mapping-with-shapeids [dao reptripids]
+  (html
+   [:ul
+    (let [reptrips (map #(.getTripForId dao %) reptripids)
+          route-shapes (map #(list (.. % getRoute getId getId)
+                                   (.. % getShapeId getId))
+                            reptrips)
+          route-shapes (sort-by first route-shapes)]
+      (map #(vector :li (comma-sep %)) route-shapes))]))
+
 ;;; consider creating a macro that abstracts over the ref nil
 ;;; and function to set it first pattern
 ;;; as well as function to retrieve the value, and set it first if necessary
