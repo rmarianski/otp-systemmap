@@ -143,8 +143,8 @@
                                     (= pair-last-stop last-stop)))
                              stopid-pairs))
         representative-trip-stop-structs (filter stops-match? trip-stop-structs)                       
-        unique-tripids (reduce (fn [hashmap {:keys [first-stop last-stop tripid]}]
-                                 (assoc hashmap [first-stop last-stop] tripid))
+        unique-tripids (reduce (fn [acc {:keys [first-stop last-stop tripid]}]
+                                 (assoc acc [first-stop last-stop] tripid))
                                {}
                                representative-trip-stop-structs)]
     (vals unique-tripids)))
@@ -154,16 +154,16 @@
   ([dao] (make-representativetrip-to-stops dao (representative-stoptimes dao)))
   ([dao rep-stoptimes]
      (let [trip->deptime-stops
-           (reduce (fn [hashmap stoptime]
+           (reduce (fn [acc stoptime]
                      (let [tripid (.. stoptime getTrip getId)]
-                       (assoc hashmap tripid
-                              (conj (get hashmap tripid #{})
+                       (assoc acc tripid
+                              (conj (get acc tripid #{})
                                     {:deptime (-> stoptime .getDepartureTime make-date-from-gtfs-time)
                                      :stop (.. stoptime getStop getId getId)}))))
                    {}
                    rep-stoptimes)]
-       (reduce (fn [hashmap [tripid deptime-stops]]
-                 (assoc hashmap
+       (reduce (fn [acc [tripid deptime-stops]]
+                 (assoc acc
                    (.getId tripid) (map :stop (smallest-and-largest deptime-stops :deptime))))
                {}
                trip->deptime-stops))))
@@ -188,23 +188,23 @@
 (defn make-stopid-to-stoptimes
   "create a mapping of stopids to stoptimes"
   [dao]
-  (reduce (fn [hashmap stoptime]
+  (reduce (fn [acc stoptime]
             (let [stopid (.. stoptime getStop getId)]
-              (assoc hashmap stopid
-                     (conj (get hashmap stopid []) stoptime))))
+              (assoc acc stopid
+                     (conj (get acc stopid []) stoptime))))
           {}
           (.getAllStopTimes dao)))
 
 (defn make-routeid-to-stopids
   "create a mapping of routeid to stop ids"
   [dao]
-  (reduce (fn [hashmap stoptime]
+  (reduce (fn [acc stoptime]
             (let [stop (.getStop stoptime)
                   route (.. stoptime getTrip getRoute)
                   stopid (.getId stop)
                   routeid (.getId route)]
-              (assoc hashmap
-                routeid (conj (get hashmap routeid #{})
+              (assoc acc
+                routeid (conj (get acc routeid #{})
                               stopid))))
           {}
           (filter #(representative-trip? (.getTrip %))
@@ -212,13 +212,13 @@
 
 (defn make-stopid-to-routeids [dao]
   "make a mapping of stopid -> route ids"
-  (reduce (fn [hashmap stoptime]
+  (reduce (fn [acc stoptime]
             (let [stop (.getStop stoptime)
                   route (.. stoptime getTrip getRoute)
                   stopid (.getId stop)
                   routeid (.getId route)]
-              (assoc hashmap
-                stopid (conj (get hashmap stopid #{})
+              (assoc acc
+                stopid (conj (get acc stopid #{})
                              routeid))))
           {}
           (filter #(representative-trip? (.getTrip %))
@@ -228,10 +228,10 @@
 ; to be leaner on mem usage?
 (defn make-tripid-to-stoptimes [dao]
   "make a mapping of tripid -> stoptime objects"
-  (reduce (fn [hashmap stoptime]
+  (reduce (fn [acc stoptime]
             (let [tripid (.. stoptime getTrip getId)]
-              (assoc hashmap tripid
-                     (conj (get hashmap tripid [])
+              (assoc acc tripid
+                     (conj (get acc tripid [])
                            stoptime))))
           {}
           (.getAllStopTimes dao)))
