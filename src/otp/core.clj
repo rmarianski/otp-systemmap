@@ -374,6 +374,16 @@
           route-shapes (sort-by first route-shapes)]
       (map #(vector :li (comma-sep %)) route-shapes))]))
 
+(defn web-route-stops [dao]
+  (html
+   [:ul
+    (let [reptrips->stops (make-representativetrip-to-stops dao)]
+      (map #(vector :li (comma-sep (concat
+                                    (list (.. (->> % key make-id (.getTripForId dao))
+                                              getRoute getId getId))
+                                    (val %))))
+           reptrips->stops))]))
+
 ;;; consider creating a macro that abstracts over the ref nil
 ;;; and function to set it first pattern
 ;;; as well as function to retrieve the value, and set it first if necessary
@@ -409,6 +419,7 @@
   (GET (str (url-prefix) "/trip-shape-mapping") (web-shape-mapping (create-gtfs-mappings)))
   (GET (str (url-prefix) "/simple-trip-shape-mapping")
        (web-shape-mapping-with-shapeids (:dao (create-gtfs-mappings)) representative-tripids))
+  (GET (str (url-prefix) "/route-stops") (web-route-stops (:dao (create-gtfs-mappings))))
   ;; this is just for testing locally
 ;;   (GET (str (url-prefix) "/*")
 ;;        (or (serve-file (str (base-path) "/api-extended") (params :*)) :next))
