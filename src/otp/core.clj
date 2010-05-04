@@ -377,12 +377,14 @@
 (defn web-route-stops [dao]
   (html
    [:ul
-    (let [reptrips->stops (make-representativetrip-to-stops dao)]
-      (map #(vector :li (comma-sep (concat
-                                    (list (.. (->> % key make-id (.getTripForId dao))
-                                              getRoute getId getId))
-                                    (val %))))
-           reptrips->stops))]))
+    (let [reptrips->stops (make-representativetrip-to-stops dao)
+          route-stops-pair (map #(concat
+                                  (list
+                                   (.. (->> % key make-id (.getTripForId dao))
+                                       getRoute getId getId))
+                                  (val %))
+                                  reptrips->stops)]
+      (map #(vector :li (comma-sep %)) (sort-by first route-stops-pair)))]))
 
 ;;; consider creating a macro that abstracts over the ref nil
 ;;; and function to set it first pattern
