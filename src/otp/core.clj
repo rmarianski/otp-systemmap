@@ -48,6 +48,7 @@
   ([] (read-gtfs (:gtfs-file-path (read-config-file))))
   ([path] (read-gtfs path (default-agency-id)))
   ([path default-agency-id]
+     (println "Reading gtfs file:" (-> path File. .getPath))
      (let [dao (GtfsRelationalDaoImpl.)
            gtfs-reader
            (doto (GtfsReader.)
