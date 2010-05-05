@@ -434,7 +434,7 @@
   (GET (str (url-prefix) "/trip-shape-mapping") (web-shape-mapping (create-gtfs-mappings)))
   (GET (str (url-prefix) "/simple-trip-shape-mapping")
        (web-shape-mapping-with-shapeids (:dao (create-gtfs-mappings)) representative-tripids))
-  (GET (str (url-prefix) "/route-stops") (web-route-stops (:dao (create-gtfs-mappings))))
+  (GET (str (url-prefix) "/route-stops") (web-route-stops (:dao (create-gtfs-mappings)))))
   ;; this is just for testing locally
 ;;   (GET (str (url-prefix) "/*")
 ;;        (or (serve-file (str (base-path) "/api-extended") (params :*)) :next))
