@@ -27,6 +27,18 @@
   [f & colls]
   (filter #(not (nil? %)) (apply map f colls)))
 
+(defn duplicates
+  "find the duplicates in a collection"
+  [coll]
+  (loop [coll coll acc #{} dupes []]
+    (if (empty? coll)
+      dupes
+      (let [val (first coll)
+            xs (rest coll)]
+        (if (contains? acc val)
+          (recur xs acc (conj dupes val))
+          (recur xs (conj acc val) dupes))))))
+
 (defn default-agency-id [] (:default-agency-id (read-config-file)))
 
 (defn read-gtfs
