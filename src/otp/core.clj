@@ -309,12 +309,12 @@
            active-service-ids (set (.getServiceIdsOnDate calendar (ServiceDate. date)))
            make-departure-info (fn [stoptime]
                                  (let [trip (.getTrip stoptime)
-                                       stdate (make-date-from-gtfs-time
-                                               (.getDepartureTime stoptime))]
+                                       departureTime (make-date-from-gtfs-time
+                                                      (.getDepartureTime stoptime))]
                                    (if (and (contains? active-service-ids
                                                        (.getServiceId trip))
-                                            (pos? (.compareTo stdate date)))
-                                     {:date date
+                                            (pos? (.compareTo departureTime date)))
+                                     {:date departureTime
                                       :headsign (.getTripHeadsign trip)
                                       :route (make-detailed-route (.getRoute trip))
                                       :routeid (.. trip getRoute getId)})))]
