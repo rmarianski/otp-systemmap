@@ -39,6 +39,16 @@
           (recur xs acc (conj dupes val))
           (recur xs (conj acc val) dupes))))))
 
+(defmacro defreduce->map
+  "concise forms to create a reduce that returns a hashmap"
+  [keyform valform itemsform]
+  ; variables are leaked to forms
+  `(reduce (fn [~'defred-map ~'defred-val]
+             (let [~'defred-key ~keyform]
+              (assoc ~'defred-map ~'defred-key ~valform)))
+           {}
+           ~itemsform))
+
 (defn default-agency-id [] (:default-agency-id (read-config-file)))
 
 (defn read-gtfs
