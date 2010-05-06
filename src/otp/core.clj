@@ -220,53 +220,36 @@
 (defn make-stopid-to-stoptimes
   "create a mapping of stopids to stoptimes"
   [dao]
-  (reduce (fn [acc stoptime]
-            (let [stopid (.. stoptime getStop getId)]
-              (assoc acc stopid
-                     (conj (get acc stopid []) stoptime))))
-          {}
-          (.getAllStopTimes dao)))
+  (defreduce->map [acc stoptime stopid]
+    (.. stoptime getStop getId)
+    (conj (get acc stopid []) stoptime)
+    (.getAllStopTimes dao)))
 
 (defn make-routeid-to-stopids
   "create a mapping of routeid to stop ids"
   [dao]
-  (reduce (fn [acc stoptime]
-            (let [stop (.getStop stoptime)
-                  route (.. stoptime getTrip getRoute)
-                  stopid (.getId stop)
-                  routeid (.getId route)]
-              (assoc acc
-                routeid (conj (get acc routeid #{})
-                              stopid))))
-          {}
-          (filter #(representative-trip? (.getTrip %))
-                  (.getAllStopTimes dao))))
+  (defreduce->map [acc stoptime routeid]
+    (.. stoptime getTrip getRoute getId)
+    (conj (get acc routeid #{})
+          (.. stoptime getStop getId))
+    (.getAllStopTimes dao)))
 
 (defn make-stopid-to-routeids [dao]
   "make a mapping of stopid -> route ids"
-  (reduce (fn [acc stoptime]
-            (let [stop (.getStop stoptime)
-                  route (.. stoptime getTrip getRoute)
-                  stopid (.getId stop)
-                  routeid (.getId route)]
-              (assoc acc
-                stopid (conj (get acc stopid #{})
-                             routeid))))
-          {}
-          (filter #(representative-trip? (.getTrip %))
-                  (.getAllStopTimes dao))))
+  (defreduce->map [acc stoptime stopid]
+    (.. stoptime getStop getId)
+    (conj (get acc stopid #{})
+          (.. stoptime getTrip getRoute getId))
+    (.getAllStopTimes dao)))
 
 ; maybe we should map to stoptime ids instead
 ; to be leaner on mem usage?
 (defn make-tripid-to-stoptimes [dao]
   "make a mapping of tripid -> stoptime objects"
-  (reduce (fn [acc stoptime]
-            (let [tripid (.. stoptime getTrip getId)]
-              (assoc acc tripid
-                     (conj (get acc tripid [])
-                           stoptime))))
-          {}
-          (.getAllStopTimes dao)))
+  (defreduce->map [acc stoptime tripid]
+    (.. stoptime getTrip getId)
+    (conj (get acc tripid []) stoptime)
+    (.getAllStopTimes dao)))
                   
 (defn create-gtfs-mappings [& filename]
   (let [daomap (if filename
