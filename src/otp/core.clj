@@ -41,11 +41,10 @@
 
 (defmacro defreduce->map
   "concise forms to create a reduce that returns a hashmap"
-  [keyform valform itemsform]
-  ; variables are leaked to forms
-  `(reduce (fn [~'defred-map ~'defred-val]
-             (let [~'defred-key ~keyform]
-              (assoc ~'defred-map ~'defred-key ~valform)))
+  [[mapvar valvar keyvar] keyform valform itemsform]
+  `(reduce (fn [~mapvar ~valvar]
+             (let [~keyvar ~keyform]
+              (assoc ~mapvar ~keyvar ~valform)))
            {}
            ~itemsform))
 
