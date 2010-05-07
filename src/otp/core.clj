@@ -188,12 +188,12 @@
      :agencyId (.getAgencyId agency-and-id)
      :routeId (.getId agency-and-id)}))
 
-(defn get-departures-for-stops
-  "retrieve departure info for given stops"
-  ([gtfs-mapping stops]
-     (get-departures-for-stops gtfs-mapping stops (Date.)))
-  ([{:keys [calendar stopid-to-stoptimes]} stops date]
-     (let [stoptimes (mapcat #(stopid-to-stoptimes (.getId %)) stops)
+(defn find-departures
+  "retrieve departure info for a stop"
+  ([gtfs-mapping stop]
+     (find-departures gtfs-mapping stop (Date.)))
+  ([{:keys [calendar stopid-to-stoptimes]} stop date]
+     (let [stoptimes (stopid-to-stoptimes (.getId stop))
            active-service-ids (set (.getServiceIdsOnDate calendar (ServiceDate. date)))
            make-departure-info (fn [stoptime]
                                  (let [trip (.getTrip stoptime)
@@ -213,7 +213,7 @@
   ([{:keys [dao stopid-to-routeids] :as gtfs-mapping} stop n]
      (let [routeids (get stopid-to-routeids (.getId stop) [])
            routes (map #(.getRouteForId dao %) routeids)
-           departures (get-departures-for-stops gtfs-mapping [stop])]
+           departures (find-departures gtfs-mapping stop)]
        {:name (.getName stop)
         :stopId (.. stop getId getId)
         :routes (map #(make-detailed-route %) routes)
