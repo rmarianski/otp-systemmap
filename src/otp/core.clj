@@ -48,6 +48,18 @@
            {}
            ~itemsform))
 
+(defmacro defreduce->map-conjoined
+  "more specific instance of defreduce->macro to return a hashmap of conjoined values"
+  [[curelt-var mapkey-var] keyform valform itemsform & default-value]
+  `(defreduce->map
+     [map-var# ~curelt-var ~mapkey-var]
+     ~keyform
+     (conj (get map-var#
+                ~mapkey-var
+                ~(if (nil? default-value) [] (first default-value)))
+           ~valform)
+     ~itemsform))
+
 (defn default-agency-id [] (:default-agency-id (read-config-file)))
 
 (defn read-gtfs
@@ -218,35 +230,35 @@
 (defn make-stopid-to-stoptimes
   "create a mapping of stopids to stoptimes"
   [dao]
-  (defreduce->map [acc stoptime stopid]
+  (defreduce->map-conjoined [stoptime stopid]
     (.. stoptime getStop getId)
-    (conj (get acc stopid []) stoptime)
+    stoptime
     (.getAllStopTimes dao)))
 
 (defn make-routeid-to-stopids
   "create a mapping of routeid to stop ids"
   [dao]
-  (defreduce->map [acc stoptime routeid]
+  (defreduce->map-conjoined [stoptime routeid]
     (.. stoptime getTrip getRoute getId)
-    (conj (get acc routeid #{})
-          (.. stoptime getStop getId))
-    (.getAllStopTimes dao)))
+    (.. stoptime getStop getId)
+    (.getAllStopTimes dao)
+    #{}))
 
 (defn make-stopid-to-routeids [dao]
   "make a mapping of stopid -> route ids"
-  (defreduce->map [acc stoptime stopid]
+  (defreduce->map-conjoined [stoptime stopid]
     (.. stoptime getStop getId)
-    (conj (get acc stopid #{})
-          (.. stoptime getTrip getRoute getId))
-    (.getAllStopTimes dao)))
+    (.. stoptime getTrip getRoute getId)
+    (.getAllStopTimes dao)
+    #{}))
 
 (defn make-tripid-to-stoptimes [dao]
   "make a mapping of tripid -> stoptime objects"
-  (defreduce->map [acc stoptime tripid]
+  (defreduce->map-conjoined [stoptime tripid]
     (.. stoptime getTrip getId)
-    (conj (get acc tripid []) stoptime)
+    stoptime
     (.getAllStopTimes dao)))
-                  
+
 (defn create-gtfs-mappings [& filename]
   (let [daomap (if filename
                  (read-gtfs (first filename))
