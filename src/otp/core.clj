@@ -39,6 +39,12 @@
           (recur xs acc (conj dupes val))
           (recur xs (conj acc val) dupes))))))
 
+(defn smallest-and-largest
+  "retrieve the smallest and largest values from a seq"
+  [key-fn coll]
+  (let [sorted-seq (sort-by key-fn coll)]
+    (vector (first sorted-seq) (last sorted-seq))))
+
 (defmacro defreduce->map
   "concise forms to create a reduce that returns a hashmap"
   [[map-var curelt-var mapkey-var] keyform valform itemsform]
@@ -139,12 +145,6 @@
   "return the stoptimes that refer to a representative trip"
   [dao]
   (filter #(representative-trip? (.getTrip %)) (.getAllStopTimes dao)))
-
-(defn smallest-and-largest
-  "retrieve the smallest and largest values from a seq"
-  [key-fn coll]
-  (let [sorted-seq (sort-by key-fn coll)]
-    (vector (first sorted-seq) (last sorted-seq))))
 
 (defn make-trip-stop-struct
   "convert a map entry of tripid to stoptimes to a trip stop struct"
