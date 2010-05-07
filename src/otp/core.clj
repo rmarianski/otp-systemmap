@@ -127,7 +127,7 @@
 
 ;; mapping creation
 
-(defn make-stopid-to-stoptimes
+(defn make-stopid->stoptimes
   "create a mapping of stopids to stoptimes"
   [dao]
   (defreduce->map-conjoined [stoptime stopid]
@@ -135,7 +135,7 @@
     stoptime
     (.getAllStopTimes dao)))
 
-(defn make-routeid-to-stopids
+(defn make-routeid->stopids
   "create a mapping of routeid to stop ids"
   [dao]
   (defreduce->map-conjoined [stoptime routeid]
@@ -144,7 +144,7 @@
     (.getAllStopTimes dao)
     #{}))
 
-(defn make-stopid-to-routeids [dao]
+(defn make-stopid->routeids [dao]
   "make a mapping of stopid -> route ids"
   (defreduce->map-conjoined [stoptime stopid]
     (.. stoptime getStop getId)
@@ -152,7 +152,7 @@
     (.getAllStopTimes dao)
     #{}))
 
-(defn make-tripid-to-stoptimes [dao]
+(defn make-tripid->stoptimes [dao]
   "make a mapping of tripid -> stoptime objects"
   (defreduce->map-conjoined [stoptime tripid]
     (.. stoptime getTrip getId)
@@ -164,10 +164,10 @@
                  (read-gtfs (first filename))
                  (read-gtfs))
         dao (:dao daomap)]
-    {:stopid-to-stoptimes (make-stopid-to-stoptimes dao)
-     :stopid-to-routeids (make-stopid-to-routeids dao)
-     :routeid-to-stopids (make-routeid-to-stopids dao)
-     :tripid-to-stoptimes (make-tripid-to-stoptimes dao)
+    {:stopid->stoptimes (make-stopid->stoptimes dao)
+     :stopid->routeids (make-stopid->routeids dao)
+     :routeid->stopids (make-routeid->stopids dao)
+     :tripid->stoptimes (make-tripid->stoptimes dao)
      :dao dao
      :calendar (:calendar daomap)}))
 
@@ -192,8 +192,8 @@
   "retrieve departure info for a stop"
   ([gtfs-mapping stop]
      (find-departures gtfs-mapping stop (Date.)))
-  ([{:keys [calendar stopid-to-stoptimes]} stop date]
-     (let [stoptimes (stopid-to-stoptimes (.getId stop))
+  ([{:keys [calendar stopid->stoptimes]} stop date]
+     (let [stoptimes (stopid->stoptimes (.getId stop))
            active-service-ids (set (.getServiceIdsOnDate calendar (ServiceDate. date)))
            make-departure-info (fn [stoptime]
                                  (let [trip (.getTrip stoptime)
@@ -210,8 +210,8 @@
 
 (defn make-detailed-stop
   ([gtfs-mapping stop] (make-detailed-stop gtfs-mapping stop 3))
-  ([{:keys [dao stopid-to-routeids] :as gtfs-mapping} stop n]
-     (let [routeids (get stopid-to-routeids (.getId stop) [])
+  ([{:keys [dao stopid->routeids] :as gtfs-mapping} stop n]
+     (let [routeids (get stopid->routeids (.getId stop) [])
            routes (map #(.getRouteForId dao %) routeids)
            departures (find-departures gtfs-mapping stop)]
        {:name (.getName stop)
@@ -226,7 +226,7 @@
       (recur m (conj acc (rest (re-groups m))))
       acc)))
 
-(defn web-wms [{:keys [dao routeid-to-stopids] :as gtfs-mapping} geoserver-base-uri params]
+(defn web-wms [{:keys [dao routeid->stopids] :as gtfs-mapping} geoserver-base-uri params]
   (json-str
    (or 
     (let [request-uri (url-params geoserver-base-uri params)
@@ -241,7 +241,7 @@
                 routes (filter-map #(.getRouteForId dao %) routeids)
                 make-route->stopids (fn [routeid]
                                       (map #(.getId %)
-                                           (get routeid-to-stopids routeid [])))]
+                                           (get routeid->stopids routeid [])))]
             {:type :routes
              :routes (map make-detailed-route routes)
              :stopids (mapcat make-route->stopids routeids)}))))
