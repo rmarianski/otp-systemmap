@@ -52,8 +52,6 @@
 
 (defn read-gtfs
   "return a loaded gtfscontext from the path"
-  ; need to update representative trip ids first
-  ;([] (read-gtfs "/home/rob/data/otp/mta/nyct_subway_100308.zip"))
   ([] (read-gtfs (:gtfs-file-path (read-config-file))))
   ([path] (read-gtfs path (default-agency-id)))
   ([path default-agency-id]
@@ -242,8 +240,6 @@
           (.. stoptime getTrip getRoute getId))
     (.getAllStopTimes dao)))
 
-; maybe we should map to stoptime ids instead
-; to be leaner on mem usage?
 (defn make-tripid-to-stoptimes [dao]
   "make a mapping of tripid -> stoptime objects"
   (defreduce->map [acc stoptime tripid]
@@ -360,13 +356,6 @@
           tripids (reptrips-for-stopids stopid-pairs gtfs-mapping)
           route-shape-structs (make-trip-route-shapeid-struct dao tripids)
           route-shapeid-strs (make-route-shapeid-str route-shape-structs)]
-          ;; we ended up finding the exact same trips
-;;           route-shapeid-strs (map comma-sep
-;;                                   (map #(concat (rest %) (list
-;;                                                           (.. (.getTripForId dao (make-id (first %)))
-;;                                                               getShapeId getId)
-;;                                                           (first %)))
-;;                                        route-shape-structs))]
       (map #(vector :li %) (sort route-shapeid-strs)))]))
 
 (defn web-shape-mapping-with-shapeids [dao reptripids]
