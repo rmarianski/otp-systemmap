@@ -41,10 +41,10 @@
 
 (defmacro defreduce->map
   "concise forms to create a reduce that returns a hashmap"
-  [[mapvar valvar keyvar] keyform valform itemsform]
-  `(reduce (fn [~mapvar ~valvar]
-             (let [~keyvar ~keyform]
-              (assoc ~mapvar ~keyvar ~valform)))
+  [[map-var curelt-var mapkey-var] keyform valform itemsform]
+  `(reduce (fn [~map-var ~curelt-var]
+             (let [~mapkey-var ~keyform]
+              (assoc ~map-var ~mapkey-var ~valform)))
            {}
            ~itemsform))
 
